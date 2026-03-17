@@ -19,19 +19,20 @@ st.markdown("**Eficiencia y Oportunidad: Medicina General | Odontología | Urgen
 def load_data():
     df = pd.read_excel("Libro1.xlsx")
     df.columns = df.columns.str.strip()
-    
-    # Limpiar datos
-    df = df.dropna(subset=[df.select_dtypes(include=['number']).columns[0]])
+    # Limpiar datos nulos en columna numérica principal
+    col_num = df.select_dtypes(include=['number']).columns[0]
+    df = df.dropna(subset=[col_num])
     return df
 
 df = load_data()
 
-# Sidebar con filtros
-st.sidebar.header("🔍 Filtros")
+# Identificar columnas principales
 col_cat = df.select_dtypes(include=['object']).columns[0]
 col_num = df.select_dtypes(include=['number']).columns[0]
 
-departamento = st.sidebar.selectbox("Departamento", df[col_cat].dropna().unique())
+# Sidebar con filtros
+st.sidebar.header("🔍 Filtros")
+departamento = st.sidebar.selectbox("Departamento", sorted(df[col_cat].dropna().unique()))
 df_filtrado = df[df[col_cat] == departamento].copy()
 
 # KPIs Principales
@@ -59,7 +60,7 @@ with col_b:
                        title="Frecuencia de Tiempos de Espera")
     st.plotly_chart(fig2, use_container_width=True)
 
-# Row 2: Bar Plot y Scatter
+# Row 2: Bar Plot y Scatter CORREGIDO
 col_c, col_d = st.columns(2)
 with col_c:
     st.subheader("🏛️ Promedio por Municipio")
@@ -67,12 +68,19 @@ with col_c:
         prom_mun = df_filtrado.groupby('municipio')[col_num].mean().reset_index()
         fig3 = px.bar(prom_mun.head(10), x='municipio', y=col_num,
                      title="Top 10 Municipios")
-        st.plotly_chart(fig3, use_container_width=True)
+    else:
+        fig3 = px.bar(df_filtrado.groupby(col_cat)[col_num].mean().reset_index(), 
+                     x=col_cat, y=col_num, title="Promedio por Categoría")
+    st.plotly_chart(fig3, use_container_width=True)
 
 with col_d:
     st.subheader("🎯 Cumplimiento por Servicio")
-    fig4 = px.scatter(df_filtrado, x=col_cat, y=col_num, color=col_num<7,
-                     title="Cumplimiento (Verde=≤7 días)")
+    # CORREGIDO: Crear columna de color explícita
+    df_plot = df_filtrado.copy()
+    df_plot['Cumple'] = df_plot[col_num] <= 7
+    fig4 = px.scatter(df_plot, x=col_cat, y=col_num, color='Cumple',
+                     title="Cumplimiento (Azul=NO cumple, Verde=SI cumple)",
+                     color_discrete_map={True: 'green', False: 'red'})
     st.plotly_chart(fig4, use_container_width=True)
 
 # Tabla resumen
