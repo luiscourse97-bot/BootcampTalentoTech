@@ -2,144 +2,131 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import numpy as np
 
 # Configuración de página
 st.set_page_config(
-    page_title="Dashboard Tiempos de Espera IPS Colombia",
+    page_title="Tiempos de Espera IPS Colombia",
     page_icon="🏥",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# Cargar datos con manejo de errores
+# Cargar datos
 @st.cache_data
 def load_data():
-    try:
-        df = pd.read_excel("Libro1.xlsx")
-        df.columns = df.columns.str.strip()
-        st.success("✅ Datos cargados correctamente")
-        return df
-    except:
-        st.error("❌ Error cargando Libro1.xlsx. Verifica que el archivo esté en la raíz del repositorio.")
-        st.stop()
+    df = pd.read_excel("Libro1.xlsx")
+    df.columns = df.columns.str.strip()
+    return df
 
 df = load_data()
 
-st.title("🏥 Dashboard Análisis Tiempos de Espera IPS Colombia 2016-2021")
-st.markdown("**Eficiencia y Oportunidad: Medicina General, Odontología y Urgencias Triage 2**")
+st.title("🏥 Dashboard Tiempos de Espera por Servicios de Salud")
+st.markdown("**Análisis específico: Medicina General, Odontología General y Urgencias Triage 2**")
 
-# Verificar columnas disponibles
-st.sidebar.subheader("📊 Columnas disponibles:")
+# Detectar columna de servicios y tiempos
+servicios_col = None
+tiempo_col = None
+
 for col in df.columns:
-    st.sidebar.text(f"• {col}")
+    if any(palabra in col.lower() for palabra in ['servicio', 'tipo', 'especialidad']):
+        servicios_col = col
+    if any(palabra in col.lower() for palabra in ['resultado', 'tiempo', 'espera']):
+        tiempo_col = col
 
-# Sidebar con filtros DINÁMICOS basados en columnas reales
-st.sidebar.header("🔍 Filtros")
+# Servicios específicos de interés
+servicios_interes = ['Medicina General', 'Odontología General', 'Urgencias Triage 2']
 
-# Filtros seguros - solo columnas que existen
-columnas_categoricas = df.select_dtypes(include=['object', 'category']).columns.tolist()
-columnas_numericas = df.select_dtypes(include=['number']).columns.tolist()
-
-if columnas_categoricas:
-    primer_categorica = columnas_categoricas[0]
-    departamento = st.sidebar.selectbox("Departamento/Región", sorted(df[primer_categorica].dropna().unique()))
+# Filtrar solo los servicios requeridos
+if servicios_col and tiempo_col:
+    df_servicios = df[df[servicios_col].isin(servicios_interes)].copy()
     
-    if len(columnas_categoricas) > 1:
-        segunda_categorica = columnas_categoricas[1]
-        servicio = st.sidebar.multiselect("Servicio/Tipo", 
-                                        df[segunda_categorica].dropna().unique(),
-                                        default=df[segunda_categorica].dropna().unique()[:3])
-    else:
-        servicio = None
+    if df_servicios.empty:
+        # Si no encuentra exactamente, buscar coincidencias parciales
+        for idx, row in df.iterrows():
+            servicio_nombre = str(row[servicios_col]).lower()
+            if any(serv in servicio_nombre for serv in ['medicina', 'odontología', 'urgencia']):
+                df_servicios = df.copy()
+                break
 else:
-    departamento = df.iloc[0][columnas_categoricas[0]] if columnas_categoricas else None
-    servicio = None
+    # Fallback: usar primeras columnas categórica y numérica
+    cat_cols = df.select_dtypes(include=['object']).columns
+    num_cols = df.select_dtypes(include=['number']).columns
+    if len(cat_cols) > 0 and len(num_cols) > 0:
+        servicios_col = cat_cols[0]
+        tiempo_col = num_cols[0]
+        df_servicios = df.copy()
 
-# Filtrar datos de forma SEGURA
-if departamento is not None:
-    mask = df[primer_categorica] == departamento
-    if servicio and len(servicio) > 0:
-        mask &= df[segunda_categorica].isin(servicio)
-    df_filtrado = df[mask].copy()
-else:
-    df_filtrado = df.copy()
-
-# Verificar que hay datos filtrados
-if df_filtrado.empty:
-    st.warning("⚠️ No hay datos con los filtros seleccionados")
+# Verificar datos válidos
+if 'df_servicios' not in locals() or df_servicios.empty:
+    st.error("❌ No se encontraron datos de Medicina General, Odontología o Urgencias")
     st.stop()
 
-# Columnas para KPIs - usar la primera columna numérica
-col_num_principal = columnas_numericas[0] if columnas_numericas else None
+# KPIs Principales
+col1, col2, col3 = st.columns(3)
+with col1:
+    avg_tiempo = df_servicios[tiempo_col].mean()
+    st.metric("⏱️ Promedio General", f"{avg_tiempo:.1f} días")
 
-if col_num_principal:
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        promedio = df_filtrado[col_num_principal].mean()
-        st.metric("⏱️ Promedio Tiempos Espera", 
-                  f"{promedio:.1f}", 
-                  delta=f"{df_filtrado[col_num_principal].median():.1f} (mediana)")
-    
-    with col2:
-        st.metric("📊 Total Registros", len(df_filtrado))
-    
-    with col3:
-        cumplimiento = 100 * (df_filtrado[col_num_principal] <= 7).sum() / len(df_filtrado)
-        st.metric("✅ Cumplimiento ≤7 días", f"{cumplimiento:.1f}%")
-    
-    with col4:
-        st.metric("📈 Desviación", f"{df_filtrado[col_num_principal].std():.1f}")
+with col2:
+    cumplimiento = 100 * (df_servicios[tiempo_col] <= 7).sum() / len(df_servicios)
+    st.metric("✅ Cumplimiento ≤7 días", f"{cumplimiento:.1f}%")
 
-# Gráfico 1: Distribución por primera columna categórica
-st.subheader("🏛️ Distribución por Municipio/Región")
-if len(columnas_categoricas) >= 2:
-    grupo1 = columnas_categoricas[1]
-    datos_grafico = df_filtrado.groupby(grupo1)[col_num_principal].agg(['mean', 'count']).reset_index()
-    datos_grafico.columns = [grupo1, 'Promedio', 'Total']
-    
-    fig1 = px.bar(
-        datos_grafico, 
-        x='Promedio', y=grupo1,
-        orientation='h',
-        title=f"Tiempos Promedio por {grupo1}",
-        color='Promedio',
-        color_continuous_scale='RdYlGn_r',
-        hover_data=['Total']
-    )
-    st.plotly_chart(fig1, use_container_width=True)
+with col3:
+    st.metric("📊 Total Registros", len(df_servicios))
 
-# Gráfico 2: Box plot por servicio
-st.subheader("📦 Distribución por Tipo de Servicio")
-if len(columnas_categoricas) >= 2:
-    fig2 = px.box(
-        df_filtrado, 
-        x=columnas_categoricas[1], 
-        y=col_num_principal,
-        title=f"Distribución {col_num_principal} por {columnas_categoricas[1]}",
-        color=columnas_categoricas[1],
-        points="outliers"
-    )
-    st.plotly_chart(fig2, use_container_width=True)
+# Gráfico 1: Box Plot - Distribución por Servicio
+st.subheader("📦 Distribución de Tiempos de Espera por Servicio")
+fig1 = px.box(
+    df_servicios, 
+    x=servicios_col, 
+    y=tiempo_col,
+    title="Tiempos de Espera: Medicina General vs Odontología vs Urgencias Triage 2",
+    color=servicios_col,
+    points="outliers+ suspectedoutliers",
+    color_discrete_sequence=px.colors.qualitative.Set3
+)
+fig1.update_layout(height=500)
+st.plotly_chart(fig1, use_container_width=True)
+
+# Gráfico 2: Bar - Promedio por Servicio
+st.subheader("📊 Promedio de Tiempos por Servicio")
+promedios = df_servicios.groupby(servicios_col)[tiempo_col].agg(['mean', 'count']).reset_index()
+promedios.columns = [servicios_col, 'Promedio', 'Total']
+
+fig2 = px.bar(
+    promedios,
+    x=servicios_col,
+    y='Promedio',
+    title="Tiempo Promedio de Espera por Tipo de Servicio",
+    text='Promedio',
+    color='Promedio',
+    color_continuous_scale='RdYlGn_r'
+)
+fig2.update_traces(texttemplate='%{text:.1f} días', textposition='outside')
+fig2.update_layout(height=500)
+st.plotly_chart(fig2, use_container_width=True)
+
+# Gráfico 3: Histograma comparativo
+st.subheader("📈 Histograma de Frecuencias")
+fig3 = px.histogram(
+    df_servicios,
+    x=tiempo_col,
+    color=servicios_col,
+    title="Distribución de Tiempos de Espera por Servicio",
+    nbins=30,
+    opacity=0.7
+)
+fig3.update_layout(height=500, barmode='overlay')
+st.plotly_chart(fig3, use_container_width=True)
 
 # Tabla resumen
-st.subheader("📋 Datos Filtrados")
-st.dataframe(df_filtrado.head(100), use_container_width=True)
+with st.expander("📋 Tabla Detallada"):
+    st.dataframe(df_servicios.groupby(servicios_col)[tiempo_col].describe().round(2))
 
-# Insights automáticos
-if col_num_principal:
-    st.subheader("💡 Análisis Automático")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if df_filtrado[col_num_principal].max() > 30:
-            st.error("🚨 Tiempos críticos >30 días detectados")
-        if df_filtrado[col_num_principal].std() > 10:
-            st.warning("⚠️ Alta variabilidad en tiempos de espera")
-    
-    with col2:
-        if (df_filtrado[col_num_principal] <= 7).mean() * 100 < 70:
-            st.error("🚨 Cumplimiento bajo (<70%)")
-        else:
-            st.success("✅ Buen nivel de cumplimiento")
+# Alertas automáticas
+st.subheader("🚨 Estado Crítico")
+if avg_tiempo > 15:
+    st.error(f"⏰ **CRÍTICO**: Promedio {avg_tiempo:.1f} días excede estándares")
+elif avg_tiempo > 10:
+    st.warning("⚠️ Promedio elevado, revisar capacidad instalada")
+else:
+    st.success("✅ Tiempos dentro de parámetros aceptables")
