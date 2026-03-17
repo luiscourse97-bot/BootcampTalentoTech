@@ -13,147 +13,204 @@ st.set_page_config(
 )
 
 st.title("🏥 Dashboard Tiempos de Espera IPS Colombia 2016-2021")
-st.markdown("**Eficiencia y Oportunidad: Medicina General | Odontología | Urgencias Triage 2**")
+st.markdown("**Eficiencia y Oportunidad: Medicina | Odontología | Urgencias Triage 2**")
 
 # Cargar datos
 @st.cache_data
 def load_data():
     df = pd.read_excel("Libro1.xlsx")
     df.columns = df.columns.str.strip()
-    col_num = df.select_dtypes(include=['number']).columns[0]
-    df = df.dropna(subset=[col_num])
+    
+    # Verificar que existe columna 'resultado'
+    if 'resultado' not in df.columns:
+        st.error("❌ Columna 'resultado' no encontrada en el dataset")
+        st.stop()
+    
+    # Limpiar datos nulos en resultado
+    df = df.dropna(subset=['resultado'])
+    df['resultado'] = pd.to_numeric(df['resultado'], errors='coerce')
+    df = df.dropna(subset=['resultado'])
+    
     return df
 
 df = load_data()
 
-# Verificar columnas específicas
-columnas_esperadas = ['departamento', 'municipio', 'ips', 'nomservicio']
-columnas_existentes = [col for col in columnas_esperadas if col in df.columns]
+# Conversión automática: Urgencias en HORAS, otros servicios en DÍAS
+def convertir_unidades(row):
+    if 'triage 2' in str(row.get('nomservicio', '')).lower() or 'urgencias' in str(row.get('nomservicio', '')).lower():
+        return row['resultado'] / 24  # Convertir horas a días para consistencia visual
+    return row['resultado']  # Días para medicina y odontología
 
-# Sidebar con filtros múltiples
+df['resultado_dias'] = df.apply(convertir_unidades, axis=1)
+
+# Sidebar con filtros específicos
 st.sidebar.header("🔍 Filtros Multi-nivel")
-filtros = {}
 
+# Filtro Departamento
 if 'departamento' in df.columns:
-    dept_opts = df['departamento'].dropna().unique()
-    filtros['departamento'] = st.sidebar.selectbox("Departamento", dept_opts)
+    departamentos = sorted(df['departamento'].dropna().unique())
+    departamento = st.sidebar.selectbox("Departamento", departamentos)
+else:
+    departamento = df['departamento'].iloc[0] if 'departamento' in df.columns else None
 
-if 'municipio' in df.columns and 'departamento' in filtros:
-    mun_opts = df[df['departamento'] == filtros['departamento']]['municipio'].dropna().unique()
-    filtros['municipio'] = st.sidebar.multiselect("Municipio", mun_opts)
+# Filtro Municipio (cascada)
+if 'municipio' in df.columns and departamento:
+    municipios = sorted(df[df['departamento'] == departamento]['municipio'].dropna().unique())
+    municipios_seleccionados = st.sidebar.multiselect("Municipio", municipios, default=municipios[:3])
+else:
+    municipios_seleccionados = None
 
+# Filtro Servicio específico
 if 'nomservicio' in df.columns:
-    serv_opts = ['Medicina General', 'Odontología General', 'Urgencias Triage 2']
-    serv_exist = df['nomservicio'].dropna().unique()
-    serv_opts_final = [s for s in serv_opts if any(s in str(x) for x in serv_exist)]
-    filtros['servicio'] = st.sidebar.multiselect("Servicio", serv_opts_final, default=serv_opts_final)
+    servicios_interes = ['Medicina General', 'Odontología General', 'Urgencias Triage 2']
+    servicios_disponibles = df['nomservicio'].dropna().unique()
+    servicios_filtrados = [s for s in servicios_interes if any(s.lower() in str(x).lower() for x in servicios_disponibles)]
+    servicios_seleccionados = st.sidebar.multiselect(
+        "Servicio", 
+        servicios_filtrados, 
+        default=servicios_filtrados
+    )
+else:
+    servicios_seleccionados = None
+
+# Filtro IPS
+if 'ips' in df.columns:
+    ips_options = df['ips'].dropna().unique()
+    ips_seleccionado = st.sidebar.multiselect("IPS", ips_options[:20], default=ips_options[:5])
+else:
+    ips_seleccionado = None
 
 # Aplicar filtros
 df_filtrado = df.copy()
-for col, valor in filtros.items():
-    if col == 'departamento':
-        df_filtrado = df_filtrado[df_filtrado['departamento'] == valor]
-    elif col == 'municipio' and valor:
-        df_filtrado = df_filtrado[df_filtrado['municipio'].isin(valor)]
-    elif col == 'servicio' and valor:
-        df_filtrado = df_filtrado[df_filtrado['nomservicio'].isin(valor)]
 
-# Columna de tiempo
-col_tiempo = df.select_dtypes(include=['number']).columns[0]
+if departamento:
+    df_filtrado = df_filtrado[df_filtrado['departamento'] == departamento]
 
-# KPIs Principales por segmentación
-col1, col2, col3, col4 = st.columns(4)
+if municipios_seleccionados:
+    df_filtrado = df_filtrado[df_filtrado['municipio'].isin(municipios_seleccionados)]
+
+if servicios_seleccionados:
+    df_filtrado = df_filtrado[df_filtrado['nomservicio'].isin(servicios_seleccionados)]
+
+if ips_seleccionado:
+    df_filtrado = df_filtrado[df_filtrado['ips'].isin(ips_seleccionado)]
+
+# KPIs Principales
+col1, col2, col3, col4, col5 = st.columns(5)
 with col1:
-    st.metric("⏱️ Promedio General", f"{df_filtrado[col_tiempo].mean():.1f} días")
+    promedio_general = df_filtrado['resultado_dias'].mean()
+    st.metric("⏱️ Promedio General", f"{promedio_general:.1f} días")
+
 with col2:
-    cumplimiento = (df_filtrado[col_tiempo] <= 7).mean() * 100
+    cumplimiento = (df_filtrado['resultado_dias'] <= 7).mean() * 100
     st.metric("✅ Cumplimiento ≤7 días", f"{cumplimiento:.1f}%")
+
 with col3:
-    st.metric("🏥 Total IPS Analizadas", df_filtrado['ips'].nunique() if 'ips' in df.columns else 0)
+    st.metric("🏥 IPS Únicas", df_filtrado['ips'].nunique() if 'ips' in df_filtrado.columns else 0)
+
 with col4:
-    st.metric("📊 Registros", len(df_filtrado))
+    st.metric("📊 Registros", f"{len(df_filtrado):,}")
+
+with col5:
+    max_tiempo = df_filtrado['resultado_dias'].max()
+    st.metric("⚠️ Máximo", f"{max_tiempo:.1f} días")
 
 # VISUALIZACIÓN 1: Box Plot por Servicio (PRINCIPAL)
 st.subheader("📦 Distribución Tiempos de Espera por Servicio")
-if 'nomservicio' in df.columns:
+if 'nomservicio' in df_filtrado.columns:
     fig1 = px.box(
         df_filtrado, 
         x='nomservicio', 
-        y=col_tiempo,
-        title="Medicina General vs Odontología vs Urgencias Triage 2",
+        y='resultado_dias',
+        title="Tiempos de Espera: Medicina General | Odontología | Urgencias Triage 2",
         color='nomservicio',
-        points="outliers"
+        points="outliers",
+        labels={'resultado_dias': 'Tiempo (días)'}
     )
     fig1.update_layout(height=500)
     st.plotly_chart(fig1, use_container_width=True)
 
-# VISUALIZACIÓN 2: Heatmap Departamento vs Servicio
+# VISUALIZACIÓN 2: Heatmap por Departamento-Servicio
 st.subheader("🔥 Heatmap: Departamento vs Servicio")
 if all(col in df_filtrado.columns for col in ['departamento', 'nomservicio']):
-    heatmap_data = df_filtrado.groupby(['departamento', 'nomservicio'])[col_tiempo].mean().unstack()
+    heatmap_data = df_filtrado.groupby(['departamento', 'nomservicio'])['resultado_dias'].mean().unstack().round(2)
     fig2 = px.imshow(
         heatmap_data,
-        title="Tiempo Promedio: Filas=Departamentos, Columnas=Servicios",
+        title="Tiempo Promedio por Departamento y Servicio",
         color_continuous_scale='RdYlGn_r',
-        aspect="auto"
+        labels=dict(color='Días promedio')
     )
     st.plotly_chart(fig2, use_container_width=True)
 
-# VISUALIZACIÓN 3: Barra por Municipio (Top 15)
-st.subheader("🏛️ Top 15 Municipios por Tiempo Promedio")
+# VISUALIZACIÓN 3: Top 15 Municipios
+st.subheader("🏛️ Top 15 Municipios - Tiempo Promedio")
 if 'municipio' in df_filtrado.columns:
-    mun_prom = df_filtrado.groupby('municipio')[col_tiempo].mean().sort_values(ascending=False).head(15)
+    mun_stats = df_filtrado.groupby('municipio')['resultado_dias'].agg(['mean', 'count']).round(2)
+    mun_stats = mun_stats.sort_values('mean', ascending=False).head(15)
+    
     fig3 = px.bar(
-        mun_prom.reset_index(),
+        mun_stats.reset_index(),
         x='municipio',
-        y=col_tiempo,
-        title="Municipios con Mayores Tiempos de Espera",
-        text=col_tiempo,
-        color=col_tiempo,
-        color_continuous_scale='Reds'
+        y='mean',
+        title="Municipios con Mayores Demoras",
+        text='mean',
+        color='mean',
+        color_continuous_scale='Reds',
+        labels={'mean': 'Días promedio'}
     )
     fig3.update_traces(texttemplate='%{text:.1f} días', textposition='outside')
     st.plotly_chart(fig3, use_container_width=True)
 
-# VISUALIZACIÓN 4: Scatter IPS (Tamaño por volumen)
-st.subheader("🏥 Rendimiento IPS - Tamaño por Volumen de Atenciones")
-if all(col in df_filtrado.columns for col in ['ips', 'municipio']):
-    ips_data = df_filtrado.groupby(['ips', 'municipio']).agg({
-        col_tiempo: ['mean', 'count']
+# VISUALIZACIÓN 4: Rendimiento IPS (Bubble Chart)
+st.subheader("🏥 Top IPS por Rendimiento")
+if all(col in df_filtrado.columns for col in ['ips', 'nomservicio']):
+    ips_stats = df_filtrado.groupby(['ips', 'nomservicio']).agg({
+        'resultado_dias': ['mean', 'count']
     }).round(2)
-    ips_data.columns = ['Promedio', 'Volumen']
-    ips_data = ips_data.reset_index()
+    ips_stats.columns = ['Promedio_dias', 'Volumen']
+    ips_stats = ips_stats.reset_index()
     
     fig4 = px.scatter(
-        ips_data,
-        x='municipio',
-        y='Promedio',
+        ips_stats.head(100),
+        x='nomservicio',
+        y='Promedio_dias',
         size='Volumen',
-        color='Promedio',
+        color='Promedio_dias',
         hover_name='ips',
-        title="IPS: Tamaño=Volumen Atenciones, Color=Tiempo Promedio",
-        color_continuous_scale='Viridis'
+        title="IPS: Tamaño=Volumen, Color=Tiempo Promedio",
+        color_continuous_scale='Viridis',
+        labels={'Promedio_dias': 'Días promedio'}
     )
     st.plotly_chart(fig4, use_container_width=True)
 
-# VISUALIZACIÓN 5: Tabla Interactiva Resumen
-st.subheader("📊 Tabla Resumen Multi-segmentación")
-resumen = df_filtrado.groupby(['departamento', 'municipio', 'nomservicio', 'ips'])[col_tiempo].agg(['mean', 'count']).round(2)
-resumen.columns = ['Promedio_días', 'Total_atenciones']
-st.dataframe(resumen.sort_values('Promedio_días', ascending=False).head(50), use_container_width=True)
+# Tabla resumen ejecutiva
+st.subheader("📊 Resumen Ejecutivo Multi-segmentación")
+if all(col in df_filtrado.columns for col in ['departamento', 'municipio', 'ips', 'nomservicio']):
+    resumen = df_filtrado.groupby(['departamento', 'municipio', 'nomservicio', 'ips']).agg({
+        'resultado_dias': ['mean', 'count']
+    }).round(2)
+    resumen.columns = ['Promedio_días', 'Total_citas']
+    resumen = resumen.sort_values('Promedio_días', ascending=False).head(20)
+    
+    st.dataframe(resumen, use_container_width=True)
 
-# ALERTAS AUTOMÁTICAS
-st.subheader("🚨 Alertas Críticas")
+# ALERTAS AUTOMÁTICAS ESPECÍFICAS
+st.subheader("🚨 Alertas Críticas por Servicio")
 alertas = []
-if df_filtrado[col_tiempo].mean() > 15:
-    alertas.append("🔴 CRÍTICO: Promedio >15 días")
-if (df_filtrado[col_tiempo] > 30).any():
-    alertas.append("🔴 Outliers >30 días detectados")
-if df_filtrado['ips'].nunique() > 50:
-    alertas.append("🟡 Demasiadas IPS - considerar segmentación adicional")
+
+medicina_data = df_filtrado[df_filtrado['nomservicio'].str.contains('Medicina', na=False)] if 'nomservicio' in df_filtrado else df_filtrado
+odontologia_data = df_filtrado[df_filtrado['nomservicio'].str.contains('Odontología', na=False)] if 'nomservicio' in df_filtrado else pd.DataFrame()
+urgencias_data = df_filtrado[df_filtrado['nomservicio'].str.contains('Triage|Urgencias', na=False)] if 'nomservicio' in df_filtrado else pd.DataFrame()
+
+if len(medicina_data) > 0 and medicina_data['resultado_dias'].mean() > 10:
+    alertas.append("🔴 MEDICINA GENERAL: Promedio >10 días")
+if len(odontologia_data) > 0 and odontologia_data['resultado_dias'].mean() > 10:
+    alertas.append("🟠 ODONTOLOGÍA: Promedio >10 días")
+if len(urgencias_data) > 0 and urgencias_data['resultado_dias'].mean() > 1:
+    alertas.append("🚨 URGENCIAS Triage 2: Promedio >24 horas")
 
 for alerta in alertas:
     st.error(alerta)
 
 if not alertas:
-    st.success("✅ Todos los indicadores dentro de parámetros aceptables")
+    st.success("✅ Todos los servicios dentro de parámetros aceptables")
