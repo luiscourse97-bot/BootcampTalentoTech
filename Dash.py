@@ -1,87 +1,89 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 # Configuración de página
 st.set_page_config(
-    page_title="Tiempos de Espera IPS Colombia",
+    page_title="Dashboard Tiempos de Espera IPS Colombia",
     page_icon="🏥",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-st.title("🏥 Dashboard Tiempos de Espera por Servicios")
-st.markdown("**Medicina General | Odontología General | Urgencias Triage 2**")
+st.title("🏥 Dashboard Tiempos de Espera IPS Colombia 2016-2021")
+st.markdown("**Eficiencia y Oportunidad: Medicina General | Odontología | Urgencias Triage 2**")
 
-# Cargar datos con debug
+# Cargar datos
 @st.cache_data
 def load_data():
     df = pd.read_excel("Libro1.xlsx")
     df.columns = df.columns.str.strip()
     
-    # DEBUG: Mostrar estructura de datos
-    st.info(f"✅ Datos cargados: {len(df)} filas, {len(df.columns)} columnas")
-    st.write("**Columnas disponibles:**")
-    for i, col in enumerate(df.columns):
-        st.write(f"{i}: '{col}'")
-    
+    # Limpiar datos
+    df = df.dropna(subset=[df.select_dtypes(include=['number']).columns[0]])
     return df
 
 df = load_data()
 
-# Encontrar columna numérica para tiempos (primera columna numérica)
-columnas_numericas = df.select_dtypes(include=['number']).columns
-if len(columnas_numericas) == 0:
-    st.error("❌ No se encontraron columnas numéricas para tiempos de espera")
-    st.stop()
+# Sidebar con filtros
+st.sidebar.header("🔍 Filtros")
+col_cat = df.select_dtypes(include=['object']).columns[0]
+col_num = df.select_dtypes(include=['number']).columns[0]
 
-col_tiempos = columnas_numericas[0]
+departamento = st.sidebar.selectbox("Departamento", df[col_cat].dropna().unique())
+df_filtrado = df[df[col_cat] == departamento].copy()
 
-# Encontrar columna de servicios (primera categórica)
-columnas_categoricas = df.select_dtypes(include=['object']).columns
-if len(columnas_categoricas) == 0:
-    st.error("❌ No se encontraron columnas categóricas para servicios")
-    st.stop()
-
-col_servicios = columnas_categoricas[0]
-
-# Mostrar datos únicos de servicios para debug
-st.write(f"**Servicios únicos en '{col_servicios}':** {sorted(df[col_servicios].dropna().unique()[:10])}")
-
-# Gráfico 1: Box Plot - Todos los datos
-st.subheader("📦 Distribución Tiempos de Espera")
-fig1 = px.box(
-    df, 
-    x=col_servicios, 
-    y=col_tiempos,
-    title=f"Tiempos de Espera por {col_servicios}",
-    color=col_servicios
-)
-st.plotly_chart(fig1, use_container_width=True)
-
-# Gráfico 2: Promedio por servicio
-st.subheader("📊 Promedio por Servicio")
-promedios = df.groupby(col_servicios)[col_tiempos].mean().reset_index()
-promedios.columns = [col_servicios, 'Promedio']
-
-fig2 = px.bar(
-    promedios.head(10),  # Solo top 10 para evitar gráficos gigantes
-    x=col_servicios, 
-    y='Promedio',
-    title="Top 10 Servicios - Tiempo Promedio",
-    text='Promedio'
-)
-fig2.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-st.plotly_chart(fig2, use_container_width=True)
-
-# KPIs simples
-col1, col2, col3 = st.columns(3)
+# KPIs Principales
+col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.metric("⏱️ Promedio General", f"{df[col_tiempos].mean():.1f}")
+    st.metric("⏱️ Promedio Tiempos", f"{df_filtrado[col_num].mean():.1f} días")
 with col2:
-    st.metric("📈 Máximo", f"{df[col_tiempos].max():.1f}")
+    cumplimiento = (df_filtrado[col_num] <= 7).mean() * 100
+    st.metric("✅ Cumplimiento ≤7 días", f"{cumplimiento:.1f}%")
 with col3:
-    st.metric("📊 Registros", f"{len(df):,}")
+    st.metric("📊 Total Atenciones", len(df_filtrado))
+with col4:
+    st.metric("📈 Máximo", f"{df_filtrado[col_num].max():.1f} días")
+
+# Row 1: Box Plot y Histograma
+col_a, col_b = st.columns(2)
+with col_a:
+    st.subheader("📦 Distribución Tiempos de Espera")
+    fig1 = px.box(df_filtrado, y=col_num, title="Distribución por Departamento")
+    st.plotly_chart(fig1, use_container_width=True)
+
+with col_b:
+    st.subheader("📈 Histograma de Frecuencias")
+    fig2 = px.histogram(df_filtrado, x=col_num, nbins=30, 
+                       title="Frecuencia de Tiempos de Espera")
+    st.plotly_chart(fig2, use_container_width=True)
+
+# Row 2: Bar Plot y Scatter
+col_c, col_d = st.columns(2)
+with col_c:
+    st.subheader("🏛️ Promedio por Municipio")
+    if 'municipio' in df.columns:
+        prom_mun = df_filtrado.groupby('municipio')[col_num].mean().reset_index()
+        fig3 = px.bar(prom_mun.head(10), x='municipio', y=col_num,
+                     title="Top 10 Municipios")
+        st.plotly_chart(fig3, use_container_width=True)
+
+with col_d:
+    st.subheader("🎯 Cumplimiento por Servicio")
+    fig4 = px.scatter(df_filtrado, x=col_cat, y=col_num, color=col_num<7,
+                     title="Cumplimiento (Verde=≤7 días)")
+    st.plotly_chart(fig4, use_container_width=True)
 
 # Tabla resumen
-with st.expander("📋 Ver primeros 100 registros"):
-    st.dataframe(df[[col_servicios, col_tiempos]].head(100))
+with st.expander("📋 Tabla Completa"):
+    st.dataframe(df_filtrado, use_container_width=True)
+
+# Insights automáticos
+st.subheader("💡 Análisis Automático")
+if df_filtrado[col_num].mean() > 15:
+    st.error("🚨 **CRÍTICO**: Promedio excede 15 días")
+elif df_filtrado[col_num].mean() > 10:
+    st.warning("⚠️ Promedio elevado")
+else:
+    st.success("✅ Tiempos aceptables")
