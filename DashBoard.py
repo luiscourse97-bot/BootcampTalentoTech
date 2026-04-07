@@ -69,137 +69,134 @@ col2.metric("🦷 **Odontología**", f"{odont_prom:.2f} **días**" if not pd.isn
 col3.metric("🚨 **Triage 2**", f"{triage_prom:.1f} **min**" if not pd.isna(triage_prom) else "N/D")
 
 # -----------------------
-# 2. VAR. DEPT X MEDGEN-ODONT (REQ)
+# 2. VAR. DEPT X MEDGEN-ODONT (REQ) ✅ FIJADO
 # -----------------------
 st.subheader("📊 **Med. General vs Odontología por Departamento**")
 df_med_odont = df_filtered[df_filtered["nomespecifique"].isin(["MEDICO GENERAL", "ODONTOLOGIA"])]
 g_med_odont = df_med_odont.groupby(["departamento", "nomespecifique"])["resultado"].mean().reset_index()
-
-# 🔥 RENOMBRAR COLUMNA para eje Y legible
 g_med_odont = g_med_odont.rename(columns={'resultado': 'dias'})
 
 fig_med_odont = px.bar(
-    g_med_odont, 
-    x="departamento", 
-    y="dias",  # ← CAMBIADO: ahora muestra "dias"
-    color="nomespecifique",
-    barmode="group", 
+    g_med_odont, x="departamento", y="dias",
+    color="nomespecifique", barmode="group", 
     title="Variación por Departamento",
-    labels={'dias': 'Días de espera'},  # ← ETIQUETA EJE Y
+    labels={'dias': 'Días de espera'},
     color_discrete_map={"MEDICO GENERAL": "#1f77b4", "ODONTOLOGIA": "#ff7f0e"}
 )
 st.plotly_chart(fig_med_odont, use_container_width=True)
 
 # -----------------------
-# 3. VAR. DEPT X TRIAGE (REQ)
+# 3. VAR. DEPT X TRIAGE (REQ) ✅ FIJADO
 # -----------------------
 st.subheader("🚨 **Triage 2 (Urgencias) por Departamento**")
 df_triage = df_filtered[df_filtered["nomespecifique"] == "URGENCIAS"]
 g_triage = df_triage.groupby("departamento")["resultado"].mean().reset_index()
-
-# 🔥 RENOMBRAR COLUMNA para eje Y legible
 g_triage = g_triage.rename(columns={'resultado': 'minutos'})
 
 fig_triage_dept = px.bar(
-    g_triage, 
-    x="departamento", 
-    y="minutos",  # ← CAMBIADO: ahora muestra "minutos"
+    g_triage, x="departamento", y="minutos",
     title="Tiempos Triage 2 por Departamento",
-    labels={'minutos': 'Minutos de espera'},  # ← ETIQUETA EJE Y
+    labels={'minutos': 'Minutos de espera'},
     color_discrete_sequence=["#d62728"]
 )
 st.plotly_chart(fig_triage_dept, use_container_width=True)
+
 # -----------------------
-# 4. VAR. AÑO X MEDGEN-ODONT (REQ)
+# 4. VAR. AÑO X MEDGEN-ODONT (REQ) ✅ FIJADO
 # -----------------------
 st.subheader("📈 **Evolución Med. General vs Odontología por Año**")
 g_year_med_odont = df_med_odont.groupby(["año", "nomespecifique"])["resultado"].mean().reset_index()
+g_year_med_odont = g_year_med_odont.rename(columns={'resultado': 'dias'})
 
 fig_year_med = px.line(
-    g_year_med_odont, x="año", y="resultado", color="nomespecifique",
-    title="Evolución Temporal (Días)",
+    g_year_med_odont, x="año", y="dias", color="nomespecifique",
+    title="Evolución Temporal",
+    labels={'dias': 'Días de espera'},
     markers=True,
     color_discrete_map={"MEDICO GENERAL": "#1f77b4", "ODONTOLOGIA": "#ff7f0e"}
 )
 st.plotly_chart(fig_year_med, use_container_width=True)
 
 # -----------------------
-# 5. VAR. AÑO X TRIAGE (REQ)
+# 5. VAR. AÑO X TRIAGE (REQ) ✅ FIJADO
 # -----------------------
 st.subheader("⏱️ **Evolución Triage 2 por Año**")
 g_year_triage = df_triage.groupby("año")["resultado"].mean().reset_index()
+g_year_triage = g_year_triage.rename(columns={'resultado': 'minutos'})
 
 fig_year_triage = px.line(
-    g_year_triage, x="año", y="resultado",
-    title="Evolución Tiempos Urgencias (Minutos)",
+    g_year_triage, x="año", y="minutos",
+    title="Evolución Tiempos Urgencias",
+    labels={'minutos': 'Minutos de espera'},
     markers=True, color_discrete_sequence=["#d62728"]
 )
 st.plotly_chart(fig_year_triage, use_container_width=True)
 
 # -----------------------
-# 6. MAPA DEPARTAMENTOS (REQ)
-# -----------------------
-# 6A. MAPA MEDICINA GENERAL + ODONTOLOGÍA (NUEVO)
+# 6A. MAPA MEDICINA GENERAL + ODONTOLOGÍA ✅ FIJADO
 # -----------------------
 st.subheader("🗺️ **Mapa Dept - Med. General & Odontología**")
 df_med_odont_map = df_filtered[df_filtered["nomespecifique"].isin(["MEDICO GENERAL", "ODONTOLOGIA"])]
 dept_med_odont = df_med_odont_map.groupby("departamento")["resultado"].mean().reset_index()
-dept_med_odont_top = dept_med_odont.nlargest(15, 'resultado')
+dept_med_odont = dept_med_odont.rename(columns={'resultado': 'dias'})
+dept_med_odont_top = dept_med_odont.nlargest(15, 'dias')
 
 fig_map1 = px.bar(
-    dept_med_odont_top, 
-    x="resultado", y="departamento",
-    orientation="h", 
-    title="**Top 15 Departamentos - Consultas (Días)**",
-    color="resultado", 
-    color_continuous_scale="Blues"
+    dept_med_odont_top, x="dias", y="departamento",
+    orientation="h", title="**Top 15 Departamentos - Consultas**",
+    labels={'dias': 'Días promedio'},
+    color="dias", color_continuous_scale="Blues"
 )
 fig_map1.update_layout(height=450)
 st.plotly_chart(fig_map1, use_container_width=True)
 
 # -----------------------
-# 6B. MAPA TRIAGE 2 (NUEVO)
+# 6B. MAPA TRIAGE 2 ✅ FIJADO
 # -----------------------
 st.subheader("🚨 **Mapa Dept - Triage 2 (Urgencias)**")
 df_triage_map = df_filtered[df_filtered["nomespecifique"] == "URGENCIAS"]
 dept_triage = df_triage_map.groupby("departamento")["resultado"].mean().reset_index()
-dept_triage_top = dept_triage.nlargest(15, 'resultado')
+dept_triage = dept_triage.rename(columns={'resultado': 'minutos'})
+dept_triage_top = dept_triage.nlargest(15, 'minutos')
 
 fig_map2 = px.bar(
-    dept_triage_top, 
-    x="resultado", y="departamento",
-    orientation="h", 
-    title="**Top 15 Departamentos - Urgencias (Minutos)**",
-    color="resultado", 
-    color_continuous_scale="Reds"
+    dept_triage_top, x="minutos", y="departamento",
+    orientation="h", title="**Top 15 Departamentos - Urgencias**",
+    labels={'minutos': 'Minutos promedio'},
+    color="minutos", color_continuous_scale="Reds"
 )
 fig_map2.update_layout(height=450)
 st.plotly_chart(fig_map2, use_container_width=True)
+
 # -----------------------
-# 7. RANKING IPS (REQ + CÓDIGO ORIGINAL)
+# 7. RANKING IPS ✅ FIJADO
 # -----------------------
 st.subheader("🏥 **Ranking IPS - Peores Tiempos**")
 ips_ranking = df_filtered.groupby("ips")["resultado"].mean().reset_index()
-ips_top10 = ips_ranking.nlargest(10, "resultado")
+ips_ranking = ips_ranking.rename(columns={'resultado': 'tiempo_espera'})
+ips_top10 = ips_ranking.nlargest(10, "tiempo_espera")
 
 fig_ips = px.bar(
-    ips_top10, x="resultado", y="ips", orientation="h",
+    ips_top10, x="tiempo_espera", y="ips", orientation="h",
     title="Top 10 IPS con mayores tiempos promedio",
-    color="resultado", color_continuous_scale="Reds_r"
+    labels={'tiempo_espera': 'Tiempo de espera'},
+    color="tiempo_espera", color_continuous_scale="Reds_r"
 )
 st.plotly_chart(fig_ips, use_container_width=True)
 
 # -----------------------
-# 8. RANKING MUNICIPIOS (REQ + CÓDIGO ORIGINAL)
+# 8. RANKING MUNICIPIOS ✅ FIJADO
 # -----------------------
 st.subheader("🏛️ **Ranking Municipios - Peores Tiempos**")
 mun_ranking = df_filtered.groupby("municipio")["resultado"].mean().reset_index()
-mun_top10 = mun_ranking.nlargest(10, "resultado")
+mun_ranking = mun_ranking.rename(columns={'resultado': 'tiempo_espera'})
+mun_top10 = mun_ranking.nlargest(10, "tiempo_espera")
 
 fig_mun = px.bar(
-    mun_top10, x="resultado", y="municipio", orientation="h",
+    mun_top10, x="tiempo_espera", y="municipio", orientation="h",
     title="Top 10 Municipios con mayores tiempos promedio",
-    color="resultado", color_continuous_scale="Oranges_r"
+    labels={'tiempo_espera': 'Tiempo de espera'},
+    color="tiempo_espera", color_continuous_scale="Oranges_r"
 )
 st.plotly_chart(fig_mun, use_container_width=True)
 
@@ -215,11 +212,8 @@ with st.expander("📋 **Análisis Exploratorio Completo**"):
 
 st.markdown("---")
 st.markdown("""
-**✅ REQUISITOS CUMPLIDOS:**
-- **8 visualizaciones** específicas solicitadas
-- **ETL** robusto con `@st.cache_data`
-- **Filtros** por dept/servicio/año
-- **KPIs** diferenciados por tipo atención
-- **Mapa** departamentos (simulado)
-- **Rankings** IPS/municipios
+**✅ TODOS LOS EJES CORREGIDOS:**
+- **Días de espera** (MedGen, Odontología)
+- **Minutos de espera** (Triage 2) 
+- **Tiempo de espera** (Rankings)
 """)
