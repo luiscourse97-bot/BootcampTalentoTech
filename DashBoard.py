@@ -36,7 +36,7 @@ df = load_and_clean_data()
 # -----------------------
 # TÍTULO
 # -----------------------
-st.title("📊Análisis de Tiempos Promedio de Espera para Asignación de Citas y atención en triaje 2 - Urgencias en IPS Colombianas, entre 2016-2021)
+st.title("📊Análisis de Tiempos Promedio de Espera para Asignación de Citas y atención en triaje 2 - Urgencias en IPS Colombianas, entre 2016-2021")
 st.markdown("*Segmentaciones: Dept, Servicio, Año | KPIs específicos | Mapas | Rankings*")
 
 # -----------------------
@@ -76,7 +76,7 @@ df_med_odont = df_filtered[df_filtered["nomespecifique"].isin(["MEDICO GENERAL",
 g_med_odont = df_med_odont.groupby(["departamento", "nomespecifique"])["resultado"].mean().reset_index()
 
 fig_med_odont = px.bar(
-    g_med_odont, x="departamento", y="resultado", color="nomespecifique",
+    g_med_odont, x="departamento", y="días", color="nomespecifique",
     barmode="group", title="Variación por Departamento (Días)",
     color_discrete_map={"MEDICO GENERAL": "#1f77b4", "ODONTOLOGIA": "#ff7f0e"}
 )
