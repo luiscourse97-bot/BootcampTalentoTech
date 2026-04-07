@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import numpy as np
 
 # -----------------------
 # CARGA DE DATOS (ETL)
@@ -23,61 +23,58 @@ def load_and_clean_data():
     # Convertir resultado a numérico
     df["resultado"] = pd.to_numeric(df["resultado"], errors="coerce")
     
-    # Filtrar outliers extremos (>99th percentile)
-    Q1 = df["resultado"].quantile(0.25)
-    Q3 = df["resultado"].quantile(0.75)
-    IQR = Q3 - Q1
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
-    df = df[(df["resultado"] >= lower_bound) & (df["resultado"] <= upper_bound)]
+    # Filtrar outliers extremos (>99th percentile) - OPCIONAL
+    # Q1 = df["resultado"].quantile(0.25)
+    # Q3 = df["resultado"].quantile(0.75)
+    # IQR = Q3 - Q1
+    # lower_bound = Q1 - 1.5 * IQR
+    # upper_bound = Q3 + 1.5 * IQR
+    # df = df[(df["resultado"] >= lower_bound) & (df["resultado"] <= upper_bound)]
     
-    # Crear columna año-mes para tendencias
-    df['periodo_str'] = pd.to_datetime(df['periodo'], format='%Y%m%d')
+    # Crear columna periodo legible para tendencias
+    df['periodo_str'] = pd.to_datetime(df['periodo'].astype(str), format='%Y%m%d', errors='coerce')
     df['año'] = df['periodo_str'].dt.year
     df['mes'] = df['periodo_str'].dt.month
+    
+    # Eliminar filas sin fecha válida
+    df = df.dropna(subset=['periodo_str'])
     
     return df
 
 df = load_and_clean_data()
 
 # -----------------------
-# EDA RESUMEN
+# TÍTULO Y EDA
 # -----------------------
-st.sidebar.title("📊 Análisis Exploratorio")
-if st.sidebar.checkbox("Mostrar resumen EDA"):
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Registros totales", f"{len(df):,}")
-        st.metric("IPS únicos", df['ips'].nunique())
-        st.metric("Municipios", df['municipio'].nunique())
-    with col2:
-        st.metric("Departamentos", df['departamento'].nunique())
-        st.metric("Servicios", df['nomespecifique'].nunique())
-        st.metric("Años de datos", df['año'].nunique())
+st.title("📊 Dashboard Salud - Tiempos de Espera **CORREGIDO**")
+st.markdown("**Análisis completo de tiempos de espera (2016-2020) - 69,688 registros** [code:1]")
+
+# EDA Sidebar
+st.sidebar.title("📊 Resumen Datos")
+col1, col2 = st.columns(2)
+col1.metric("Registros", f"{len(df):,}")
+col2.metric("Años", df['año'].nunique())
+st.sidebar.metric("Departamentos", df['departamento'].nunique())
+st.sidebar.metric("IPS únicos", df['ips'].nunique())
 
 # -----------------------
-# TÍTULO
-# -----------------------
-st.title("📊 Dashboard Salud - Tiempos de Espera Mejorado")
-st.markdown("**Análisis completo de tiempos de espera en consultas médicas (2016-2020)** [code:1]")
-
-# -----------------------
-# FILTROS MEJORADOS
+# FILTROS
 # -----------------------
 st.sidebar.header("🔍 Filtros")
 departamento = st.sidebar.selectbox(
-    "Departamento",
-    ["Todos"] + sorted(df["departamento"].dropna().unique())
+    "Departamento", 
+    ["Todos"] + sorted(df["departamento"].dropna().unique().tolist())
 )
 
-nomespecifique = st.sidebar.selectbox(
-    "Tipo de atención",
-    ["Todos"] + sorted(df["nomespecifique"].dropna().unique())
+servicio = st.sidebar.selectbox(
+    "Servicio", 
+    ["Todos"] + sorted(df["nomespecifique"].dropna().unique().tolist())
 )
 
-año = st.sidebar.selectbox(
-    "Año",
-    ["Todos"] + sorted(df["año"].dropna().unique().astype(str))
+año = st.sidebar.multiselect(
+    "Años", 
+    sorted(df["año"].dropna().unique().tolist()),
+    default=sorted(df["año"].dropna().unique().tolist())
 )
 
 # -----------------------
@@ -87,145 +84,143 @@ df_filtered = df.copy()
 
 if departamento != "Todos":
     df_filtered = df_filtered[df_filtered["departamento"] == departamento]
-if nomespecifique != "Todos":
-    df_filtered = df_filtered[df_filtered["nomespecifique"] == nomespecifique]
-if año != "Todos":
-    df_filtered = df_filtered[df_filtered["año"] == int(año)]
+
+if servicio != "Todos":
+    df_filtered = df_filtered[df_filtered["nomespecifique"] == servicio]
+
+if año:
+    df_filtered = df_filtered[df_filtered["año"].isin(año)]
 
 # -----------------------
-# KPIs PRINCIPALES
+# KPIs
 # -----------------------
-st.subheader("📌 Indicadores Clave de Desempeño")
+st.subheader("📌 KPIs Principales")
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Promedio espera", f"{df_filtered['resultado'].mean():.2f} días")
+col1.metric("Promedio", f"{df_filtered['resultado'].mean():.2f} días")
 col2.metric("Mediana", f"{df_filtered['resultado'].median():.2f} días")
-col3.metric("Máximo", f"{df_filtered['resultado'].max():.2f} días")
-col4.metric("Registros", f"{len(df_filtered):,}")
+col3.metric("Desv. Est.", f"{df_filtered['resultado'].std():.2f} días")
+col4.metric("Muestras", f"{len(df_filtered):,}")
 
 # -----------------------
-# DISTRIBUCIÓN TIEMPOS ESPERA
+# 1. DISTRIBUCIÓN
 # -----------------------
-st.subheader("📈 Distribución de Tiempos de Espera")
-fig_dist = px.histogram(
+st.subheader("📈 Distribución Tiempos")
+fig_hist = px.histogram(
     df_filtered, 
     x="resultado", 
     nbins=50,
     title="Histograma de tiempos de espera",
     labels={'resultado': 'Días de espera'}
 )
-fig_dist.update_layout(bargap=0.1)
-st.plotly_chart(fig_dist, use_container_width=True)
+st.plotly_chart(fig_hist, use_container_width=True)
 
 # -----------------------
-# TENDENCIA TEMPORAL
+# 2. TENDENCIA TEMPORAL - CORREGIDA
 # -----------------------
 st.subheader("⏱️ Evolución Temporal")
-fig_trend = px.line(
-    df_filtered.groupby(['año', 'mes'])['resultado'].agg(['mean', 'count']).reset_index(),
-    x='año',
-    y='mean',
-    title="Evolución promedio de tiempos de espera",
-    size_max=8
-)
-st.plotly_chart(fig_trend, use_container_width=True)
+trend_data = df_filtered.groupby(['periodo_str', 'año', 'mes'])['resultado'].agg(['mean', 'count']).reset_index()
+trend_data['año_mes'] = trend_data['periodo_str'].dt.to_period('M').astype(str)
+
+if len(trend_data) > 0:
+    fig_trend = px.line(
+        trend_data, 
+        x='periodo_str', 
+        y='mean',
+        title="Evolución promedio mensual",
+        labels={'mean': 'Días promedio', 'periodo_str': 'Fecha'}
+    )
+    fig_trend.update_xaxes(title="Período")
+    st.plotly_chart(fig_trend, use_container_width=True)
+else:
+    st.warning("No hay datos para mostrar tendencia")
 
 # -----------------------
-# RANKING IPS (Top 10 peores)
+# 3. RANKING IPS
 # -----------------------
-st.subheader("🏥 Ranking IPS - Peores desempeños")
-ips_worst = df_filtered.groupby("ips")["resultado"].mean().reset_index()
-ips_worst = ips_worst.sort_values(by="resultado", ascending=False).head(10)
+st.subheader("🏥 Top 10 IPS (Peores)")
+ips_ranking = df_filtered.groupby("ips")["resultado"].mean().reset_index()
+ips_top = ips_ranking.nlargest(10, 'resultado')
 
 fig_ips = px.bar(
-    ips_worst,
-    x="resultado",
-    y="ips",
+    ips_top, 
+    x="resultado", 
+    y="ips", 
     orientation="h",
-    title="Top 10 IPS con mayores tiempos promedio"
+    title="IPS con mayores tiempos promedio"
 )
 st.plotly_chart(fig_ips, use_container_width=True)
 
 # -----------------------
-# RANKING MUNICIPIOS
+# 4. RANKING DEPARTAMENTOS
 # -----------------------
-st.subheader("🏛️ Ranking Municipios")
-mun_worst = df_filtered.groupby("municipio")["resultado"].mean().reset_index()
-mun_worst = mun_worst.sort_values(by="resultado", ascending=False).head(10)
+st.subheader("📊 Top 10 Departamentos")
+dept_ranking = df_filtered.groupby("departamento")["resultado"].mean().reset_index()
+dept_top = dept_ranking.nlargest(10, 'resultado')
 
-fig_mun = px.bar(
-    mun_worst,
-    x="resultado",
-    y="municipio",
+fig_dept = px.bar(
+    dept_top, 
+    x="resultado", 
+    y="departamento", 
     orientation="h",
-    title="Top 10 Municipios con mayores tiempos promedio"
+    title="Departamentos con mayores tiempos promedio"
 )
-st.plotly_chart(fig_mun, use_container_width=True)
+st.plotly_chart(fig_dept, use_container_width=True)
 
 # -----------------------
-# HEATMAP DEPARTAMENTOS
+# 5. COMPARATIVA SERVICIOS
 # -----------------------
-st.subheader("🌡️ Mapa de Calor por Departamento y Servicio")
-pivot_dept = df_filtered.pivot_table(
-    values='resultado', 
-    index='departamento', 
-    columns='nomespecifique', 
-    aggfunc='mean'
-).fillna(0)
+st.subheader("⚖️ Comparativa por Servicio")
+service_stats = df_filtered.groupby('nomespecifique')['resultado'].agg(['mean','median','count']).round(2)
+st.dataframe(service_stats.T.style.format("{:.2f}"))
 
-fig_heatmap = px.imshow(
-    pivot_dept.values,
-    labels=dict(x="Servicio", y="Departamento", color="Días promedio"),
-    x=pivot_dept.columns,
-    y=pivot_dept.index,
-    aspect="auto",
-    color_continuous_scale='Reds'
-)
-st.plotly_chart(fig_heatmap, use_container_width=True)
-
-# -----------------------
-# COMPARACIÓN SERVICIOS
-# -----------------------
-st.subheader("⚖️ Comparación por Tipo de Servicio")
-service_stats = df_filtered.groupby('nomespecifique')['resultado'].agg(['mean', 'median', 'std', 'count']).round(2)
-st.dataframe(service_stats.style.highlight_max(axis=0, color='lightcoral'))
-
-# Boxplot comparativo
 fig_box = px.box(
     df_filtered, 
     x='nomespecifique', 
     y='resultado',
-    title="Distribución por tipo de servicio"
+    title="Boxplot por tipo de servicio"
 )
 st.plotly_chart(fig_box, use_container_width=True)
 
 # -----------------------
-# TOP 10 DEPARTAMENTOS
+# 6. HEATMAP DEPARTAMENTO-SERVICIO
 # -----------------------
-st.subheader("📊 Top 10 Departamentos")
-dep_stats = df_filtered.groupby("departamento")["resultado"].mean().reset_index()
-dep_stats = dep_stats.sort_values(by="resultado", ascending=False).head(10)
+st.subheader("🌡️ Heatmap Dept-Servicio")
+pivot_heatmap = df_filtered.pivot_table(
+    values='resultado', 
+    index='departamento', 
+    columns='nomespecifique', 
+    aggfunc='mean', 
+    fill_value=0
+).round(2)
 
-fig_dep = px.bar(
-    dep_stats,
-    x="resultado",
-    y="departamento",
-    orientation="h",
-    title="Departamentos con mayores tiempos promedio"
+fig_heatmap = px.imshow(
+    pivot_heatmap.values,
+    labels=dict(color="Días promedio"),
+    x=pivot_heatmap.columns,
+    y=pivot_heatmap.index,
+    aspect="auto",
+    color_continuous_scale='YlOrRd'
 )
-fig_dep.update_layout(yaxis={'categoryorder':'total ascending'})
-st.plotly_chart(fig_dep, use_container_width=True)
+fig_heatmap.update_layout(height=600)
+st.plotly_chart(fig_heatmap, use_container_width=True)
 
 # -----------------------
-# PIE CHART PORCENTAJES
+# 7. DISTRIBUCIÓN SERVICIOS (PIE)
 # -----------------------
-st.subheader("📱 Distribución por Servicio")
-service_dist = df_filtered['nomespecifique'].value_counts()
-fig_pie = px.pie(
-    values=service_dist.values,
-    names=service_dist.index,
-    title="Proporción de registros por tipo de servicio"
-)
-st.plotly_chart(fig_pie, use_container_width=True)
+col1, col2 = st.columns(2)
+with col1:
+    st.subheader("📱 % Registros por Servicio")
+    service_dist = df_filtered['nomespecifique'].value_counts()
+    fig_pie = px.pie(
+        values=service_dist.values,
+        names=service_dist.index,
+        hole=0.4
+    )
+    st.plotly_chart(fig_pie, use_container_width=True)
+
+with col2:
+    st.subheader("📋 Tabla Resumen Servicios")
+    st.dataframe(service_dist)
 
 st.markdown("---")
-st.markdown("*Dashboard mejorado con ETL completo, análisis exploratorio y visualizaciones avanzadas. Datos procesados: 69,688 registros de 2016-2020* [code:1]")
+st.markdown("*✅ Dashboard corregido y optimizado. ETL robusto + 7 visualizaciones interactivas* [code:1]")
