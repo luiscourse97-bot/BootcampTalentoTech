@@ -120,13 +120,11 @@ st.plotly_chart(fig_dist, use_container_width=True)
 # TENDENCIA TEMPORAL
 # -----------------------
 st.subheader("⏱️ Evolución Temporal")
-fig_trend = px.line(
-    df_filtered.groupby(['año', 'mes'])['resultado'].agg(['mean', 'count']).reset_index(),
-    x='año',
-    y='mean',
-    title="Evolución promedio de tiempos de espera",
-    size_max=8
-)
+# Groupby SIMPLE solo por fecha con media
+trend_data = df_filtered.groupby('periodo_str')['resultado'].mean().reset_index()
+fig_trend = px.line(trend_data,
+                    x='periodo_str',
+                    y='resultado')
 st.plotly_chart(fig_trend, use_container_width=True)
 
 # -----------------------
