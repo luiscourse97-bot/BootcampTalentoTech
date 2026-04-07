@@ -40,14 +40,23 @@ st.title("📊Análisis de Tiempos Promedio de Espera para Asignación de Citas 
 st.markdown("*Segmentaciones: Dept, Servicio, Año | KPIs específicos | Mapas | Rankings*")
 
 # -----------------------
-# EDA RÁPIDO (BONUS)
+# EDA RÁPIDO (BONUS) - FIJADO
 # -----------------------
 with st.expander("📋 **Análisis Exploratorio Completo**"):
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Registros", f"{len(df_filtered):,}")
-    col2.metric("Departamentos", len(df_filtered['departamento'].unique()))
-    col3.metric("IPS Únicos", len(df_filtered['ips'].unique()))
-    col4.metric("Municipios", len(df_filtered['municipio'].unique()))
+    # ✅ VERIFICAR que df_filtered existe antes de usar
+    if 'df_filtered' in locals() and len(df_filtered) > 0:
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Registros", f"{len(df_filtered):,}")
+        col2.metric("Departamentos", len(df_filtered['departamento'].unique()))
+        col3.metric("IPS Únicos", len(df_filtered['ips'].unique()))
+        col4.metric("Municipios", len(df_filtered['municipio'].unique()))
+    else:
+        st.warning("⚠️ Aplica filtros para ver estadísticas")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Registros", f"{len(df):,}")
+        col2.metric("Departamentos", len(df['departamento'].unique()))
+        col3.metric("IPS Únicos", len(df['ips'].unique()))
+        col4.metric("Municipios", len(df['municipio'].unique()))
 
 # -----------------------
 # FILTROS LATERALES
