@@ -126,17 +126,42 @@ st.plotly_chart(fig_year_triage, use_container_width=True)
 # -----------------------
 # 6. MAPA DEPARTAMENTOS (REQ)
 # -----------------------
-st.subheader("🗺️ **Mapa - Tiempos Promedio por Departamento**")
-dept_map = df_filtered.groupby("departamento")["resultado"].mean().reset_index()
-# Simulación mapa con bar horizontal (choropleth requiere geojson Colombia)
-fig_map = px.bar(
-    dept_map.nlargest(15, 'resultado'), x="resultado", y="departamento",
-    orientation="h", title="**Mapa de Calor Departamentos** (Top 15)",
-    color="resultado", color_continuous_scale="Reds"
-)
-fig_map.update_layout(height=500)
-st.plotly_chart(fig_map, use_container_width=True)
+# 6A. MAPA MEDICINA GENERAL + ODONTOLOGÍA (NUEVO)
+# -----------------------
+st.subheader("🗺️ **Mapa Dept - Med. General & Odontología**")
+df_med_odont_map = df_filtered[df_filtered["nomespecifique"].isin(["MEDICO GENERAL", "ODONTOLOGIA"])]
+dept_med_odont = df_med_odont_map.groupby("departamento")["resultado"].mean().reset_index()
+dept_med_odont_top = dept_med_odont.nlargest(15, 'resultado')
 
+fig_map1 = px.bar(
+    dept_med_odont_top, 
+    x="resultado", y="departamento",
+    orientation="h", 
+    title="**Top 15 Departamentos - Consultas (Días)**",
+    color="resultado", 
+    color_continuous_scale="Blues"
+)
+fig_map1.update_layout(height=450)
+st.plotly_chart(fig_map1, use_container_width=True)
+
+# -----------------------
+# 6B. MAPA TRIAGE 2 (NUEVO)
+# -----------------------
+st.subheader("🚨 **Mapa Dept - Triage 2 (Urgencias)**")
+df_triage_map = df_filtered[df_filtered["nomespecifique"] == "URGENCIAS"]
+dept_triage = df_triage_map.groupby("departamento")["resultado"].mean().reset_index()
+dept_triage_top = dept_triage.nlargest(15, 'resultado')
+
+fig_map2 = px.bar(
+    dept_triage_top, 
+    x="resultado", y="departamento",
+    orientation="h", 
+    title="**Top 15 Departamentos - Urgencias (Minutos)**",
+    color="resultado", 
+    color_continuous_scale="Reds"
+)
+fig_map2.update_layout(height=450)
+st.plotly_chart(fig_map2, use_container_width=True)
 # -----------------------
 # 7. RANKING IPS (REQ + CÓDIGO ORIGINAL)
 # -----------------------
