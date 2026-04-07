@@ -40,6 +40,16 @@ st.title("📊Análisis de Tiempos Promedio de Espera para Asignación de Citas 
 st.markdown("*Segmentaciones: Dept, Servicio, Año | KPIs específicos | Mapas | Rankings*")
 
 # -----------------------
+# EDA RÁPIDO (BONUS)
+# -----------------------
+with st.expander("📋 **Análisis Exploratorio Completo**"):
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Registros", f"{len(df_filtered):,}")
+    col2.metric("Departamentos", len(df_filtered['departamento'].unique()))
+    col3.metric("IPS Únicos", len(df_filtered['ips'].unique()))
+    col4.metric("Municipios", len(df_filtered['municipio'].unique()))
+
+# -----------------------
 # FILTROS LATERALES
 # -----------------------
 st.sidebar.header("🔍 **FILTROS**")
@@ -247,12 +257,3 @@ fig_mun2 = px.bar(
 )
 fig_mun2.update_layout(height=400)
 st.plotly_chart(fig_mun2, use_container_width=True)
-# -----------------------
-# EDA RÁPIDO (BONUS)
-# -----------------------
-with st.expander("📋 **Análisis Exploratorio Completo**"):
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Registros", f"{len(df_filtered):,}")
-    col2.metric("Departamentos", len(df_filtered['departamento'].unique()))
-    col3.metric("IPS Únicos", len(df_filtered['ips'].unique()))
-    col4.metric("Municipios", len(df_filtered['municipio'].unique()))
