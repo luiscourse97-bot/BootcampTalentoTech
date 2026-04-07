@@ -76,12 +76,25 @@ df_med_odont = df_filtered[df_filtered["nomespecifique"].isin(["MEDICO GENERAL",
 g_med_odont = df_med_odont.groupby(["departamento", "nomespecifique"])["resultado"].mean().reset_index()
 g_med_odont = g_med_odont.rename(columns={'resultado': 'dias'})
 
+# 🔥 ORDENAR MENOR → MAYOR (MEJOR → PEOR)
+g_med_odont['dept_order'] = g_med_odont.groupby('departamento')['dias'].transform('mean')
+g_med_odont = g_med_odont.sort_values('dept_order').drop_duplicates('departamento', keep='first')
+dept_order = g_med_odont['departamento'].tolist()
+
 fig_med_odont = px.bar(
-    g_med_odont, x="departamento", y="dias",
-    color="nomespecifique", barmode="group", 
-    title="Variación por Departamento",
+    g_med_odont, 
+    x="departamento", 
+    y="dias",
+    color="nomespecifique", 
+    barmode="group", 
+    title="**Departamentos: Mejor → Peor desempeño**",
     labels={'dias': 'Días de espera'},
     color_discrete_map={"MEDICO GENERAL": "#1f77b4", "ODONTOLOGIA": "#ff7f0e"}
+)
+
+# ✅ ORDENAR EJE X: MENOR → MAYOR
+fig_med_odont.update_layout(
+    xaxis={'categoryorder':'array', 'categoryarray': dept_order}
 )
 st.plotly_chart(fig_med_odont, use_container_width=True)
 
