@@ -171,18 +171,42 @@ st.plotly_chart(fig_map2, use_container_width=True)
 # -----------------------
 # 7. RANKING IPS ✅ FIJADO
 # -----------------------
-st.subheader("🏥 **Ranking IPS - Peores Tiempos**")
-ips_ranking = df_filtered.groupby("ips")["resultado"].mean().reset_index()
-ips_ranking = ips_ranking.rename(columns={'resultado': 'tiempo_espera'})
-ips_top10 = ips_ranking.nlargest(10, "tiempo_espera")
+# 7A. RANKING IPS - MEDICINA GENERAL + ODONTOLOGÍA ✅ NUEVO
+# -----------------------
+st.subheader("🏥 **Ranking IPS Consultas - Med. General & Odontología**")
+df_ips_consultas = df_filtered[df_filtered["nomespecifique"].isin(["MEDICO GENERAL", "ODONTOLOGIA"])]
+ips_consultas = df_ips_consultas.groupby("ips")["resultado"].mean().reset_index()
+ips_consultas = ips_consultas.rename(columns={'resultado': 'dias'})
+ips_consultas_top10 = ips_consultas.nlargest(10, "dias")
 
-fig_ips = px.bar(
-    ips_top10, x="tiempo_espera", y="ips", orientation="h",
-    title="Top 10 IPS con mayores tiempos promedio",
-    labels={'tiempo_espera': 'Tiempo de espera'},
-    color="tiempo_espera", color_continuous_scale="Reds_r"
+fig_ips1 = px.bar(
+    ips_consultas_top10, 
+    x="dias", y="ips", orientation="h",
+    title="**Top 10 IPS Consultas** (Días)",
+    labels={'dias': 'Días promedio'},
+    color="dias", color_continuous_scale="Blues_r"
 )
-st.plotly_chart(fig_ips, use_container_width=True)
+fig_ips1.update_layout(height=400)
+st.plotly_chart(fig_ips1, use_container_width=True)
+
+# -----------------------
+# 7B. RANKING IPS - TRIAGE 2 ✅ NUEVO
+# -----------------------
+st.subheader("🚨 **Ranking IPS Urgencias - Triage 2**")
+df_ips_triage = df_filtered[df_filtered["nomespecifique"] == "URGENCIAS"]
+ips_triage = df_ips_triage.groupby("ips")["resultado"].mean().reset_index()
+ips_triage = ips_triage.rename(columns={'resultado': 'minutos'})
+ips_triage_top10 = ips_triage.nlargest(10, "minutos")
+
+fig_ips2 = px.bar(
+    ips_triage_top10, 
+    x="minutos", y="ips", orientation="h",
+    title="**Top 10 IPS Urgencias** (Minutos)",
+    labels={'minutos': 'Minutos promedio'},
+    color="minutos", color_continuous_scale="Reds_r"
+)
+fig_ips2.update_layout(height=400)
+st.plotly_chart(fig_ips2, use_container_width=True)
 
 # -----------------------
 # 8. RANKING MUNICIPIOS ✅ FIJADO
