@@ -75,9 +75,17 @@ st.subheader("📊 **Med. General vs Odontología por Departamento**")
 df_med_odont = df_filtered[df_filtered["nomespecifique"].isin(["MEDICO GENERAL", "ODONTOLOGIA"])]
 g_med_odont = df_med_odont.groupby(["departamento", "nomespecifique"])["resultado"].mean().reset_index()
 
+# 🔥 RENOMBRAR COLUMNA para eje Y legible
+g_med_odont = g_med_odont.rename(columns={'resultado': 'dias'})
+
 fig_med_odont = px.bar(
-    g_med_odont, x="departamento", y="resultado", color="nomespecifique",
-    barmode="group", title="Variación por Departamento (Días)",
+    g_med_odont, 
+    x="departamento", 
+    y="dias",  # ← CAMBIADO: ahora muestra "dias"
+    color="nomespecifique",
+    barmode="group", 
+    title="Variación por Departamento",
+    labels={'dias': 'Días de espera'},  # ← ETIQUETA EJE Y
     color_discrete_map={"MEDICO GENERAL": "#1f77b4", "ODONTOLOGIA": "#ff7f0e"}
 )
 st.plotly_chart(fig_med_odont, use_container_width=True)
