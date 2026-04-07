@@ -211,19 +211,42 @@ st.plotly_chart(fig_ips2, use_container_width=True)
 # -----------------------
 # 8. RANKING MUNICIPIOS ✅ FIJADO
 # -----------------------
-st.subheader("🏛️ **Ranking Municipios - Peores Tiempos**")
-mun_ranking = df_filtered.groupby("municipio")["resultado"].mean().reset_index()
-mun_ranking = mun_ranking.rename(columns={'resultado': 'tiempo_espera'})
-mun_top10 = mun_ranking.nlargest(10, "tiempo_espera")
+# 8A. RANKING MUNICIPIOS - MEDICINA GENERAL + ODONTOLOGÍA ✅ NUEVO
+# -----------------------
+st.subheader("🏛️ **Ranking Municipios Consultas - Med. General & Odontología**")
+df_mun_consultas = df_filtered[df_filtered["nomespecifique"].isin(["MEDICO GENERAL", "ODONTOLOGIA"])]
+mun_consultas = df_mun_consultas.groupby("municipio")["resultado"].mean().reset_index()
+mun_consultas = mun_consultas.rename(columns={'resultado': 'dias'})
+mun_consultas_top10 = mun_consultas.nlargest(10, "dias")
 
-fig_mun = px.bar(
-    mun_top10, x="tiempo_espera", y="municipio", orientation="h",
-    title="Top 10 Municipios con mayores tiempos promedio",
-    labels={'tiempo_espera': 'Tiempo de espera'},
-    color="tiempo_espera", color_continuous_scale="Oranges_r"
+fig_mun1 = px.bar(
+    mun_consultas_top10, 
+    x="dias", y="municipio", orientation="h",
+    title="**Top 10 Municipios Consultas** (Días)",
+    labels={'dias': 'Días promedio'},
+    color="dias", color_continuous_scale="Blues_r"
 )
-st.plotly_chart(fig_mun, use_container_width=True)
+fig_mun1.update_layout(height=400)
+st.plotly_chart(fig_mun1, use_container_width=True)
 
+# -----------------------
+# 8B. RANKING MUNICIPIOS - TRIAGE 2 ✅ NUEVO
+# -----------------------
+st.subheader("🚨 **Ranking Municipios Urgencias - Triage 2**")
+df_mun_triage = df_filtered[df_filtered["nomespecifique"] == "URGENCIAS"]
+mun_triage = df_mun_triage.groupby("municipio")["resultado"].mean().reset_index()
+mun_triage = mun_triage.rename(columns={'resultado': 'minutos'})
+mun_triage_top10 = mun_triage.nlargest(10, "minutos")
+
+fig_mun2 = px.bar(
+    mun_triage_top10, 
+    x="minutos", y="municipio", orientation="h",
+    title="**Top 10 Municipios Urgencias** (Minutos)",
+    labels={'minutos': 'Minutos promedio'},
+    color="minutos", color_continuous_scale="Reds_r"
+)
+fig_mun2.update_layout(height=400)
+st.plotly_chart(fig_mun2, use_container_width=True)
 # -----------------------
 # EDA RÁPIDO (BONUS)
 # -----------------------
