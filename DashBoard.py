@@ -209,11 +209,3 @@ with st.expander("📋 **Análisis Exploratorio Completo**"):
     col2.metric("Departamentos", len(df_filtered['departamento'].unique()))
     col3.metric("IPS Únicos", len(df_filtered['ips'].unique()))
     col4.metric("Municipios", len(df_filtered['municipio'].unique()))
-
-st.markdown("---")
-st.markdown("""
-**✅ TODOS LOS EJES CORREGIDOS:**
-- **Días de espera** (MedGen, Odontología)
-- **Minutos de espera** (Triage 2) 
-- **Tiempo de espera** (Rankings)
-""")
