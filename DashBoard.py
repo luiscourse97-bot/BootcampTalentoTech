@@ -97,13 +97,18 @@ st.subheader("🚨 **Triage 2 (Urgencias) por Departamento**")
 df_triage = df_filtered[df_filtered["nomespecifique"] == "URGENCIAS"]
 g_triage = df_triage.groupby("departamento")["resultado"].mean().reset_index()
 
+# 🔥 RENOMBRAR COLUMNA para eje Y legible
+g_triage = g_triage.rename(columns={'resultado': 'minutos'})
+
 fig_triage_dept = px.bar(
-    g_triage, x="departamento", y="resultado",
-    title="Tiempos Triage 2 por Departamento (Minutos)",
+    g_triage, 
+    x="departamento", 
+    y="minutos",  # ← CAMBIADO: ahora muestra "minutos"
+    title="Tiempos Triage 2 por Departamento",
+    labels={'minutos': 'Minutos de espera'},  # ← ETIQUETA EJE Y
     color_discrete_sequence=["#d62728"]
 )
 st.plotly_chart(fig_triage_dept, use_container_width=True)
-
 # -----------------------
 # 4. VAR. AÑO X MEDGEN-ODONT (REQ)
 # -----------------------
